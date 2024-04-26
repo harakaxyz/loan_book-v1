@@ -47,11 +47,3 @@ LoanBook is a decentralized application deployed on the Celo blockchain designed
 
 #### Information Retrieval
 - **getGroup**: Retrieve details about a specific group.
-
-## Installation
-
-To deploy the LoanBook contract, you need:
-- A Celo wallet setup
-- Enough CELO to cover gas fees
-- Node.js installed
-- Truffle or Hardhat for compiling and deploying smart contracts
