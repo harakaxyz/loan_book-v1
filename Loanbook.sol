@@ -27,6 +27,7 @@ contract LoanBook is Ownable, AccessControl {
     }
 
     mapping(uint256 => Group) private groups;
+    mapping(address => uint256) public userOnGroup;
     uint256 public groupIdCounter;
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -47,6 +48,28 @@ contract LoanBook is Ownable, AccessControl {
         _setRoleAdmin(MANAGER_ROLE, keccak256("ADMIN_ROLE"));
     }
 
+    function getGroup(uint256 _groupId) external view returns(address, uint256, IERC20, bool, uint256) {
+        return (
+            groups[_groupId].manager,
+            groups[_groupId].availableFunding,
+            groups[_groupId].token,
+            groups[_groupId].isOpen,
+            groups[_groupId].members.length()
+        );
+    }
+
+    function getGroupMember(uint256 _groupId, uint256 _index) external view returns(address) {
+        return groups[_groupId].members.at(_index);
+    }
+
+    function getMemberLoansCount(uint256 _groupId, address _member) external view returns (uint256) {
+        return groups[_groupId].loansToUser[_member];
+    }
+
+    function getMemberLoanRequest(uint256 _groupId, address _member, uint256 _index) external view returns (LoanRequest memory) {
+        return groups[_groupId].loanRequests[_member][_index];
+    }
+
     function createGroup(address _manager, address _tokenAddress) external onlyOwner {
         uint256 groupId = groupIdCounter++;
         groups[groupId].isOpen = true;
@@ -54,6 +77,7 @@ contract LoanBook is Ownable, AccessControl {
         groups[groupId].members.add(_manager);
         groups[groupId].token = IERC20(_tokenAddress);
         grantRole(MANAGER_ROLE, _manager);
+        userOnGroup[_manager] = groupId;
         emit GroupCreated(groupId, _manager, _tokenAddress);
     }
 
@@ -66,6 +90,7 @@ contract LoanBook is Ownable, AccessControl {
     function addMember(uint256 _groupId, address _member) external onlyOwnerOrManager(_groupId) {
         require(groups[_groupId].isOpen, "Group is closed");
         groups[_groupId].members.add(_member);
+        userOnGroup[_member] = _groupId;
         emit MemberAdded(_groupId, _member);
     }
 
@@ -129,10 +154,6 @@ contract LoanBook is Ownable, AccessControl {
     function sendERC20(address _tokenAddress, address _to, uint256 _amount) external onlyOwner {
         IERC20 token = IERC20(_tokenAddress);
         token.safeTransfer(_to, _amount);
-    }
-
-    function getGroup(uint256 _groupId) external view returns(address, uint256) {
-        return (groups[_groupId].manager, groups[_groupId].availableFunding);
     }
 
     modifier onlyOwnerOrManager(uint256 _groupId) {
