@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts@4.9.6/access/Ownable.sol";
-import "@openzeppelin/contracts@4.9.6/access/AccessControl.sol";
-import "@openzeppelin/contracts@4.9.6/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts@4.9.6/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts@4.9.6/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract LoanBook is Ownable, AccessControl {
-    using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for IERC20;
+contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable {
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     struct LoanRequest {
         uint256 requestedAmount;
@@ -17,10 +18,10 @@ contract LoanBook is Ownable, AccessControl {
     }
 
     struct Group {
-        EnumerableSet.AddressSet members;
+        EnumerableSetUpgradeable.AddressSet members;
         address manager;
         bool isOpen;
-        IERC20 token;
+        IERC20Upgradeable token;
         uint256 availableFunding;
         mapping(address => LoanRequest[]) loanRequests;
         mapping(address => uint256) loansToUser;
@@ -43,22 +44,26 @@ contract LoanBook is Ownable, AccessControl {
     event LoanRepaid(uint256 indexed groupId, address indexed borrower, uint256 loanId, uint256 amount);
     event ManagerChanged(uint256 indexed groupId, address indexed oldManager, address indexed newManager);
 
-    constructor()  {
-        _grantRole(keccak256("ADMIN_ROLE"), msg.sender);
-        _setRoleAdmin(MANAGER_ROLE, keccak256("ADMIN_ROLE"));
+    function initialize() public initializer {
+        __Ownable_init(msg.sender);
+        __AccessControl_init();
+        _setRoleAdmin(MANAGER_ROLE, DEFAULT_ADMIN_ROLE);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        groupIdCounter = 1; // Initialize counter
     }
 
-    function getGroup(uint256 _groupId) external view returns(address, uint256, IERC20, bool, uint256) {
+    function getGroup(uint256 _groupId) external view returns (address, uint256, IERC20Upgradeable, bool, uint256) {
+        Group storage group = groups[_groupId];
         return (
-            groups[_groupId].manager,
-            groups[_groupId].availableFunding,
-            groups[_groupId].token,
-            groups[_groupId].isOpen,
-            groups[_groupId].members.length()
+            group.manager,
+            group.availableFunding,
+            group.token,
+            group.isOpen,
+            group.members.length()
         );
     }
 
-    function getGroupMember(uint256 _groupId, uint256 _index) external view returns(address) {
+    function getGroupMember(uint256 _groupId, uint256 _index) external view returns (address) {
         return groups[_groupId].members.at(_index);
     }
 
@@ -70,12 +75,13 @@ contract LoanBook is Ownable, AccessControl {
         return groups[_groupId].loanRequests[_member][_index];
     }
 
-    function createGroup(address _manager, address _tokenAddress) external onlyOwner {
+    function createGroup(address _manager, address _tokenAddress) public onlyOwner {
         uint256 groupId = groupIdCounter++;
-        groups[groupId].isOpen = true;
-        groups[groupId].manager = _manager;
-        groups[groupId].members.add(_manager);
-        groups[groupId].token = IERC20(_tokenAddress);
+        Group storage group = groups[groupId];
+        group.isOpen = true;
+        group.manager = _manager;
+        group.members.add(_manager);
+        group.token = IERC20Upgradeable(_tokenAddress);
         grantRole(MANAGER_ROLE, _manager);
         userOnGroup[_manager] = groupId;
         emit GroupCreated(groupId, _manager, _tokenAddress);
@@ -87,30 +93,34 @@ contract LoanBook is Ownable, AccessControl {
         emit GroupClosed(_groupId);
     }
 
-    function addMember(uint256 _groupId, address _member) external onlyOwnerOrManager(_groupId) {
+    function addMember(uint256 _groupId, address _member) external {
+        require(hasRole(MANAGER_ROLE, msg.sender) || owner() == msg.sender, "Not authorized");
         require(groups[_groupId].isOpen, "Group is closed");
         groups[_groupId].members.add(_member);
         userOnGroup[_member] = _groupId;
         emit MemberAdded(_groupId, _member);
     }
 
-    function removeMember(uint256 _groupId, address _member) external onlyOwnerOrManager(_groupId) {
+    function removeMember(uint256 _groupId, address _member) external {
+        require(hasRole(MANAGER_ROLE, msg.sender) || owner() == msg.sender, "Not authorized");
         require(groups[_groupId].isOpen, "Group is closed");
         groups[_groupId].members.remove(_member);
         emit MemberRemoved(_groupId, _member);
     }
 
-    function addMembers(uint256 _groupId, address[] memory _members) external onlyOwnerOrManager(_groupId) {
+    function addMembers(uint256 _groupId, address[] memory _members) external {
+        require(hasRole(MANAGER_ROLE, msg.sender) || owner() == msg.sender, "Not authorized");
         require(groups[_groupId].isOpen, "Group is closed");
-        for (uint256 i = 0; i < _members.length; i++) {
+        for (uint i = 0; i < _members.length; i++) {
             groups[_groupId].members.add(_members[i]);
         }
         emit MembersAdded(_groupId, _members);
     }
 
-    function removeMembers(uint256 _groupId, address[] memory _members) external onlyOwnerOrManager(_groupId) {
+    function removeMembers(uint256 _groupId, address[] memory _members) external {
+        require(hasRole(MANAGER_ROLE, msg.sender) || owner() == msg.sender, "Not authorized");
         require(groups[_groupId].isOpen, "Group is closed");
-        for (uint256 i = 0; i < _members.length; i++) {
+        for (uint i = 0; i < _members.length; i++) {
             groups[_groupId].members.remove(_members[i]);
         }
         emit MembersRemoved(_groupId, _members);
@@ -123,13 +133,14 @@ contract LoanBook is Ownable, AccessControl {
         emit GroupFunded(_groupId, msg.sender, _amount);
     }
 
-    function requestLoan(uint256 _groupId, uint256 _amount) external onlyGroupMember(_groupId) {
+    function requestLoan(uint256 _groupId, uint256 _amount) external {
+        require(groups[_groupId].members.contains(msg.sender), "Not a group member");
         require(groups[_groupId].isOpen, "Group is closed");
         require(_amount <= groups[_groupId].availableFunding, "Requested amount exceeds available funding");
         uint256 loanId = groups[_groupId].loanRequests[msg.sender].length;
         groups[_groupId].token.safeTransfer(msg.sender, _amount);
         groups[_groupId].loanRequests[msg.sender].push(LoanRequest(_amount, 0));
-        groups[_groupId].loansToUser[msg.sender] += 1;
+        groups[_groupId].loansToUser[msg.sender]++;
         groups[_groupId].availableFunding -= _amount;
         emit LoanRequested(_groupId, msg.sender, loanId, _amount);
     }
@@ -152,16 +163,15 @@ contract LoanBook is Ownable, AccessControl {
     }
 
     function sendERC20(address _tokenAddress, address _to, uint256 _amount) external onlyOwner {
-        IERC20 token = IERC20(_tokenAddress);
+        IERC20Upgradeable token = IERC20Upgradeable(_tokenAddress);
         token.safeTransfer(_to, _amount);
     }
 
-    modifier onlyOwnerOrManager(uint256 _groupId) {
+  modifier onlyOwnerOrManager(uint256 _groupId) {
         require(owner() == msg.sender || groups[_groupId].manager == msg.sender, "Not authorized");
         _;
     }
-
-    modifier onlyGroupMember(uint256 _groupId) {
+modifier onlyGroupMember(uint256 _groupId) {
         require(groups[_groupId].members.contains(msg.sender), "Not a group member");
         _;
     }
