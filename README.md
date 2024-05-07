@@ -2,48 +2,66 @@
 
 ## Overview
 
-LoanBook is a decentralized application deployed on the Celo blockchain designed to facilitate group lending activities. It enables users to manage lending groups efficiently through features like creating groups, adding and managing members, funding, and handling loans. 
+The `LoanBook` smart contract is designed to manage group-based lending on the Celo blockchain. It allows for the creation of lending groups, management of members, and handling of loan requests and repayments within each group. Built on Solidity `0.8.20`, the contract leverages OpenZeppelin's upgradeable contracts framework to ensure future improvements can be made without disrupting the existing ecosystem or data.
 
 ## Features
 
-### Contract Components
+- **Group Management**: Create and manage lending groups with distinct managers and members.
+- **Role-Based Access Control**: Utilize OpenZeppelin's Access Control to assign roles and permissions.
+- **Loan Handling**: Manage loan requests and repayments.
+- **Funding Groups**: Allow funding to groups which can then be lent out to members.
+- **Upgradeable**: Built using OpenZeppelin's UUPS upgradeable pattern, allowing for new features and fixes to be added post-deployment.
 
-#### Structs
-- **LoanRequest**: Structure to manage the amount requested by a member and the amount that has been repaid.
-- **Group**: Structure representing a lending group including details like members, a manager, and financial transactions like loans and funding.
+## Functions
 
-#### Events
-- **GroupCreated**: Emitted when a new lending group is created.
-- **GroupClosed**: Emitted when a group is closed.
-- **MemberAdded, MemberRemoved**: Emitted when members are added to or removed from a group.
-- **MembersAdded, MembersRemoved**: Emitted when multiple members are added or removed.
-- **GroupFunded**: Emitted when any amount of funds is added to a group's balance.
-- **LoanRequested**: Emitted when a loan is requested by a group member.
-- **LoanRepaid**: Emitted when a loan is repaid by a group member.
-- **ManagerChanged**: Emitted when the manager of a group is changed.
+### Group Operations
 
-#### Modifiers
-- **onlyOwnerOrManager**: Ensures that only the owner or the manager of the group can execute certain functions.
-- **onlyGroupMember**: Ensures that only members of a specific group can execute certain functions.
+- **createGroup(address _manager, address _tokenAddress)**
+  - Create a new lending group with a designated manager and associated ERC20 token for transactions.
+  - Only callable by the contract owner.
 
-### Functionalities
+- **closeGroup(uint256 _groupId)**
+  - Close an existing group, preventing any new loans or memberships.
+  - Only callable by the contract owner.
 
-#### Group Management
-- **createGroup**: Create a new lending group.
-- **closeGroup**: Close an existing group.
-- **addMember, removeMember**: Manage individual group members.
-- **addMembers, removeMembers**: Manage multiple group members at once.
-- **changeManager**: Change the manager of the group.
+### Member Management
 
-#### Funding Operations
-- **fundGroup**: Add funds to a group's balance to be available for lending.
+- **addMember(uint256 _groupId, address _member)**
+  - Add a new member to a specific group.
+  - Only callable by the group manager or the contract owner.
 
-#### Loan Management
-- **requestLoan**: Members can request loans from the group's fund.
-- **repayLoan**: Members can repay loans to the group's fund.
+- **removeMember(uint256 _groupId, address _member)**
+  - Remove an existing member from a group.
+  - Only callable by the group manager or the contract owner.
 
-#### ERC20 Token Operations
-- **sendERC20**: Allows the contract owner to send ERC20 tokens from the contract to a specified wallet address.
+### Loan Management
 
-#### Information Retrieval
-- **getGroup**: Retrieve details about a specific group.
+- **requestLoan(uint256 _groupId, uint256 _amount)**
+  - Request a loan from the group fund by a group member.
+  - Conditions apply based on group funding and member status.
+
+- **repayLoan(uint256 _groupId, uint256 _loanId, uint256 _amount)**
+  - Repay a loan to the group's fund.
+  - Ensures the caller is a group member and the loan ID is valid.
+
+### Funding and Transactions
+
+- **fundGroup(uint256 _groupId, uint256 _amount)**
+  - Fund a group's available lending pool with the specified amount of ERC20 tokens.
+  - Callable by any user who wishes to fund the group.
+
+- **sendERC20(address _tokenAddress, address _to, uint256 _amount)**
+  - Allows the contract owner to send ERC20 tokens from the contract to a specified address.
+
+## Modifiers
+
+- **onlyOwnerOrManager(uint256 _groupId)**
+  - Ensures that either the contract owner or the group manager can execute a function.
+
+- **onlyGroupMember(uint256 _groupId)**
+  - Ensures that a function can only be called by a member of the specified group.
+
+## Setup and Deployment
+
+1. **Deployment**: The contract should be deployed using a proxy to ensure upgradeability.
+2. **Initialization**: After deployment, the `initialize()` function must be called to set up the contract owner and prepare the contract for use.
