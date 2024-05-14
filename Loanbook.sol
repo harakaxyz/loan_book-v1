@@ -1,14 +1,15 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+ // SPDX-License-Identifier: MIT
+pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/access/OwnableUpgradeable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/access/AccessControlUpgradeable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/utils/structs/EnumerableSetUpgradeable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/token/ERC20/IERC20Upgradeable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/proxy/utils/Initializable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.9.6/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable {
+contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
@@ -45,7 +46,7 @@ contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable
     event ManagerChanged(uint256 indexed groupId, address indexed oldManager, address indexed newManager);
 
     function initialize() public initializer {
-        __Ownable_init(msg.sender);
+        __Ownable_init();
         __AccessControl_init();
         _setRoleAdmin(MANAGER_ROLE, DEFAULT_ADMIN_ROLE);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -54,13 +55,7 @@ contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable
 
     function getGroup(uint256 _groupId) external view returns (address, uint256, IERC20Upgradeable, bool, uint256) {
         Group storage group = groups[_groupId];
-        return (
-            group.manager,
-            group.availableFunding,
-            group.token,
-            group.isOpen,
-            group.members.length()
-        );
+        return (group.manager, group.availableFunding, group.token, group.isOpen, group.members.length());
     }
 
     function getGroupMember(uint256 _groupId, uint256 _index) external view returns (address) {
@@ -71,7 +66,11 @@ contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable
         return groups[_groupId].loansToUser[_member];
     }
 
-    function getMemberLoanRequest(uint256 _groupId, address _member, uint256 _index) external view returns (LoanRequest memory) {
+    function getMemberLoanRequest(uint256 _groupId, address _member, uint256 _index)
+        external
+        view
+        returns (LoanRequest memory)
+    {
         return groups[_groupId].loanRequests[_member][_index];
     }
 
@@ -111,7 +110,7 @@ contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable
     function addMembers(uint256 _groupId, address[] memory _members) external {
         require(hasRole(MANAGER_ROLE, msg.sender) || owner() == msg.sender, "Not authorized");
         require(groups[_groupId].isOpen, "Group is closed");
-        for (uint i = 0; i < _members.length; i++) {
+        for (uint256 i = 0; i < _members.length; i++) {
             groups[_groupId].members.add(_members[i]);
         }
         emit MembersAdded(_groupId, _members);
@@ -120,7 +119,7 @@ contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable
     function removeMembers(uint256 _groupId, address[] memory _members) external {
         require(hasRole(MANAGER_ROLE, msg.sender) || owner() == msg.sender, "Not authorized");
         require(groups[_groupId].isOpen, "Group is closed");
-        for (uint i = 0; i < _members.length; i++) {
+        for (uint256 i = 0; i < _members.length; i++) {
             groups[_groupId].members.remove(_members[i]);
         }
         emit MembersRemoved(_groupId, _members);
@@ -167,12 +166,15 @@ contract LoanBook is Initializable, OwnableUpgradeable, AccessControlUpgradeable
         token.safeTransfer(_to, _amount);
     }
 
-  modifier onlyOwnerOrManager(uint256 _groupId) {
+    modifier onlyOwnerOrManager(uint256 _groupId) {
         require(owner() == msg.sender || groups[_groupId].manager == msg.sender, "Not authorized");
         _;
     }
-modifier onlyGroupMember(uint256 _groupId) {
+
+    modifier onlyGroupMember(uint256 _groupId) {
         require(groups[_groupId].members.contains(msg.sender), "Not a group member");
         _;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
