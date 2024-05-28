@@ -196,13 +196,10 @@ contract LoanBook is
         emit MembersRemoved(_groupId, _members);
     }
 
-    function fundGroup(uint256 _groupId, uint256 _amount) external {
+
+    function fundGroup(uint256 _groupId, uint256 _amount) external onlyOwner {
         require(groups[_groupId].isOpen, "Group is closed");
-        groups[_groupId].token.safeTransferFrom(
-            msg.sender,
-            address(this),
-            _amount
-        );
+        require(groups[_groupId].token.balanceOf(address(this)) >= _amount, "Insufficient balance on contract");
         groups[_groupId].availableFunding += _amount;
         emit GroupFunded(_groupId, msg.sender, _amount);
     }
