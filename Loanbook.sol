@@ -204,7 +204,7 @@ contract LoanBook is
         emit GroupFunded(_groupId, msg.sender, _amount);
     }
 
-    function requestLoan(uint256 _groupId, uint256 _amount) external {
+    function requestLoan(uint256 _groupId, uint256 _amount) external onlyOwner {
         require(
             groups[_groupId].members.contains(msg.sender),
             "Not a group member"
