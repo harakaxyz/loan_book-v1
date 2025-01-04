@@ -9,6 +9,8 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+
 import "./interfaces/ILoanBookV2.sol";
 import "./lib/Utils.sol";
 
@@ -102,6 +104,7 @@ contract LoanBookV21 is Initializable, OwnableUpgradeable, AccessControlUpgradea
         public
         screening
         onlyRole(MEMBER_ROLE)
+        nonReentrant()
     {
         if (!hasRole(MEMBER_ROLE, _manager)) revert NotRegistered();
         uint256 groupId = groupIdCounter++;
@@ -499,7 +502,7 @@ contract LoanBookV21 is Initializable, OwnableUpgradeable, AccessControlUpgradea
         }
     }
 
-    function repayLoan(uint256 _groupId, uint256 _loanId, uint256 _amount) external {
+    function repayLoan(uint256 _groupId, uint256 _loanId, uint256 _amount) external  {
         require(groups[_groupId].isOpen, "Group is closed");
         require(groups[_groupId].members.contains(msg.sender), "Not a group member");
         require(_loanId < groups[_groupId].loanRequests[msg.sender].length, "Invalid loan ID");
